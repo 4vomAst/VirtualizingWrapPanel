@@ -105,7 +105,17 @@ namespace WpfToolkit.Controls
             }
             else if (InternalChildren.Count != 0)
             {
-                childSize = InternalChildren[0].DesiredSize;
+                var maxDesiredSize = InternalChildren[0].DesiredSize;
+
+                foreach (UIElement internalChild in InternalChildren)
+                {
+                    if (internalChild.DesiredSize.Width > maxDesiredSize.Width)
+                    {
+                        maxDesiredSize = internalChild.DesiredSize;
+                    }
+                }
+
+                childSize = maxDesiredSize;
             }
             else
             {
