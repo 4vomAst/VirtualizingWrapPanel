@@ -3,6 +3,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using NLog;
 
 namespace WpfToolkit.Controls
 {
@@ -12,6 +13,11 @@ namespace WpfToolkit.Controls
     /// </summary>
     public class VirtualizingWrapPanel : VirtualizingPanelBase
     {
+        private readonly Logger logger = LogManager.GetLogger("VirtualizingWrapPanel");
+        private Size _lastAvailableSize = Size.Empty;
+        private int _lastInternalChildrenCount = 0;
+        private Size _lastMaxDesiredSize = Size.Empty;
+        
         #region Deprecated properties
 
         [Obsolete("Use SpacingMode")]
@@ -84,6 +90,7 @@ namespace WpfToolkit.Controls
 
         private void UpdateChildSize(Size availableSize)
         {
+            logger.Trace($"{availableSize.Width} x {availableSize.Height}");
             if (ItemsOwner is IHierarchicalVirtualizationAndScrollInfo groupItem
                 && VirtualizingPanel.GetIsVirtualizingWhenGrouping(ItemsControl))
             {
@@ -102,24 +109,41 @@ namespace WpfToolkit.Controls
             if (ItemSize != Size.Empty)
             {
                 childSize = ItemSize;
+                logger.Trace($"ItemSize {childSize.Width} x {childSize.Height}");
             }
             else if (InternalChildren.Count != 0)
             {
-                var maxDesiredSize = InternalChildren[0].DesiredSize;
-
-                foreach (UIElement internalChild in InternalChildren)
+                if (availableSize.Equals(_lastAvailableSize)
+                    && InternalChildren.Count.Equals(_lastInternalChildrenCount))
                 {
-                    if (internalChild.DesiredSize.Width > maxDesiredSize.Width)
-                    {
-                        maxDesiredSize = internalChild.DesiredSize;
-                    }
+                    childSize = _lastMaxDesiredSize;
+                    logger.Trace($"Cached desired size {childSize.Width} x {childSize.Height}");
                 }
+                else
+                {
+                    _lastAvailableSize = availableSize;
+                    _lastInternalChildrenCount = InternalChildren.Count;
+                    
+                    var maxDesiredSize = InternalChildren[0].DesiredSize;
 
-                childSize = maxDesiredSize;
+                    foreach (UIElement internalChild in InternalChildren)
+                    {
+                        if (internalChild.DesiredSize.Width > maxDesiredSize.Width)
+                        {
+                            maxDesiredSize = internalChild.DesiredSize;
+                        }
+                    }
+
+                    _lastMaxDesiredSize = maxDesiredSize;
+                    childSize = maxDesiredSize;
+                    
+                    logger.Trace($"Max desired size {childSize.Width} x {childSize.Height} out of {_lastInternalChildrenCount}");
+                }
             }
             else
             {
                 childSize = CalculateChildSize(availableSize);
+                logger.Trace($"calculated size {childSize.Width} x {childSize.Height}");
             }
 
             if (double.IsInfinity(GetWidth(availableSize)))
@@ -132,6 +156,8 @@ namespace WpfToolkit.Controls
             }
 
             rowCount = (int)Math.Ceiling((double)Items.Count / itemsPerRowCount);
+            logger.Trace($"Columns: {itemsPerRowCount}, rows: {rowCount}");
+            
         }
 
         private Size CalculateChildSize(Size availableSize)
